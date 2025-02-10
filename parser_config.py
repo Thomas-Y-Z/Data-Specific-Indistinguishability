@@ -12,28 +12,11 @@ model_names.append('WRN_40_4')
 model_names.append('WRN_16_4')
 model_names.append('preactresnet18')
 
-clip_option_box={
-    'uniform': {'threshold':[1.0],
-                'percentage':[1.0],
-                'factor': 1},
-    'mode_0': {'threshold':[0.2,0.5,1.0],
-                'percentage':[0.2,0.5,0.3],
-                'factor': 1},
-    'mode_1': {'threshold':[0.1,0.3,1.0],
-                'percentage':[0.4,0.4,0.2],
-                'factor': 1}
-}
-# 'threshold' shold be in ascending order
-
 def create_parser():
     
     parser = argparse.ArgumentParser(description='Propert ResNets for CIFAR10 in pytorch')
 
 # training arguments
-    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet20',
-                        choices=model_names,
-                        help='model architecture: ' + ' | '.join(model_names) +
-                        ' (default: resnet20)')
     parser.add_argument('--task', default='cifar10', type=str,
                         choices=['cifar10','diffusion','llm','backdoor'],
                         help='task type')
@@ -43,9 +26,9 @@ def create_parser():
                         help='number of total epochs to run')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
-    parser.add_argument('-b', '--batch-size', default=5000, type=int,
+    parser.add_argument('-b', '--batch-size', default=1000, type=int,
                         metavar='N', help='mini-batch size (default: 5000)')
-    parser.add_argument('--physical-size', default=1000, type=int,
+    parser.add_argument('--physical-size', default=8000, type=int,
                         metavar='N', help='physical batch size (default: 1000)')
     parser.add_argument('--lr', '--learning-rate', default=0.5, type=float,
                         metavar='LR', help='initial learning rate')
@@ -63,8 +46,12 @@ def create_parser():
                         metavar='N', help='print frequency (default: 50)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
+    
+    # this is an expired argument
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
+    
+    # this is an expired argument
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
     parser.add_argument('--half', dest='half', action='store_true',
@@ -89,6 +76,8 @@ def create_parser():
 # Device arguments
     parser.add_argument('--using-cuda',dest='using_cuda',action='store_true',
                         help='use cuda to run')
+    
+    # no need to pass this argument
     parser.add_argument('--device',
                         help='cuda device',
                         default='cuda:0', type=str)
@@ -108,6 +97,8 @@ def create_parser():
     #                     help='Parameter for privacy accounting. Probability of not achieving privacy guarantees')
     parser.add_argument('--epsilon', '--eps', default=1, type=int,
                         metavar='EPS', help='privacy guarantee (epsilon,delta) ')
+    
+    # this is an expired argument
     parser.add_argument('--noise-multiplier',default=0, type=float,
                         metavar='NOISE', help='... ')
 
@@ -121,6 +112,8 @@ def create_parser():
     parser.add_argument('--full-mode',action='store_true', help='Use full mode')
     parser.add_argument('--local-lr', default=0.00025, type=float,
                         metavar='LOCAL_LR', help='... ')
+    parser.add_argument('--full-mode-do-clip',action='store_true', help='clip gradients in local updates if True')
+    parser.add_argument('--angel_clip',action='store_true', help='clip gradients in local updates if True')
 
 
 # Distributed arguments
@@ -135,6 +128,24 @@ def create_parser():
     parser.add_argument('--master-port', default='29500', type=str,
                         metavar='PORT', help='master port')
     
+    
+    return parser
+
+def create_parser_cifar10():
+
+    parser = argparse.ArgumentParser(description='Extra arguments for CIFAR10')
+
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet20',
+                        choices=model_names,
+                        help='model architecture: ' + ' | '.join(model_names) +
+                        ' (default: resnet20)')
+
+    return parser
+
+def create_parser_llm():
+    
+    parser = argparse.ArgumentParser(description='Extra arguments for LLM')
+
 # language model arguments
     parser.add_argument('--block-size', default=1024, type=int,
                         metavar='BLOCKSIZE', help='len(token) of each datapoint')
@@ -143,14 +154,30 @@ def create_parser():
     parser.add_argument('--wiki-size', default=20, type=int,
                         metavar='WIKISIZE', help='size of wiki-103')
     parser.add_argument('--duplication', action='store_true',
-                        help='duplicate 1000 data points of wiki-103')
+                        help='duplicate 1000 data points of wiki-103 for 10 times')
     parser.add_argument('--model-name-or-path', default='gpt2', type=str,
                         choices=['gpt2','opt-350m','opt-125m','gpt2-medium'],
                         metavar='MODEL', help='model name or path')
     parser.add_argument('--canary-prompt', default='normal', type=str,
-                        choices=['normal','wizard','hanshen'],
+                        choices=['normal','wizard'],
                         metavar='PROMPT', help='prompt for canary')
+    parser.add_argument('--do-ref-model', action='store_true',
+                        help='use reference model in evaluation')
+    parser.add_argument('--train-head-only', action='store_true',
+                        help='train head only')
+    parser.add_argument('--add-canary', action='store_true',
+                        help='add canary to the training set')
+    
+    return parser
 
+def create_parser_backdoor():
+    
+    parser = argparse.ArgumentParser(description='Extra arguments for backdoor')
+
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet20',
+                        choices=model_names,
+                        help='model architecture: ' + ' | '.join(model_names) +
+                        ' (default: resnet20)')
 # backdoor arguments
     parser.add_argument('--attack', default='none', type=str,
                         choices=['none','badnet','blended'],
@@ -159,13 +186,25 @@ def create_parser():
                         metavar='N', help='number of data source (pratio=1/num_source)')
     parser.add_argument('--backdoor-from-scratch', action='store_true',
                         help='train backdoor from scratch')
-    
+    parser.add_argument('--source-per-group', default=0, type=int,
+                        metavar='N', help='number of data source per group')
     
     return parser
 
 def get_args():
     parser = create_parser()
-    args = parser.parse_args()
+    args, remaining_argv = parser.parse_known_args()
+    if args.task == 'cifar10':
+        parser_additional = create_parser_cifar10()
+        args.__dict__.update(vars(parser_additional.parse_args(remaining_argv)))
+    elif args.task == 'llm':
+        parser_additional = create_parser_llm()
+        args.__dict__.update(vars(parser_additional.parse_args(remaining_argv)))
+    elif args.task == 'backdoor':
+        parser_additional = create_parser_backdoor()
+        args.__dict__.update(vars(parser_additional.parse_args(remaining_argv)))
+        if args.source_per_group==0:
+            args.source_per_group=args.num_source-1
 
     args.log_path=os.path.join(args.save_dir, args.log_fname)
     if args.use_resume:
@@ -178,7 +217,7 @@ def get_args():
     return args
 
 def refresh_args(args):
-    args.clip_strategy=clip_option_box[args.clip_mode]
+    # args.clip_strategy=clip_option_box[args.clip_mode]
     args.clip_strategy['factor']=args.factor
     args.log_path=os.path.join(args.save_dir, args.log_fname)
     args.grad_obs_path=os.path.join(args.save_dir, args.grad_obs_fname)

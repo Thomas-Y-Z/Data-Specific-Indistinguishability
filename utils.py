@@ -173,9 +173,9 @@ def prepare_tensors(inputs=None,targets=None,tags=None):
         shapes,dtypes=prepare_shape()
         if inputs==None or inputs.shape!=shapes[0]:
             inputs=torch.zeros(shapes[0],dtype=dtypes[0],device=args.device)
-        if inputs==None or inputs.shape!=shapes[1]:
+        if targets==None or targets.shape!=shapes[1]:
             targets=torch.zeros(shapes[1],dtype=dtypes[1],device=args.device)
-        if inputs==None or inputs.shape!=shapes[2]:
+        if tags==None or tags.shape!=shapes[2]:
             tags=torch.zeros(shapes[2],dtype=dtypes[2],device=args.device)
         return inputs,targets,tags
 
